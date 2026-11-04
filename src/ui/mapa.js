@@ -51,19 +51,45 @@ export function crearMapa(contenedor, { onTocar }) {
 
   // ---------------------------------------------------------------- zoom y arrastre
   let vista = { k: 1, x: 0, y: 0 };
+  let tocado = false; // si la persona ya movió o acercó el mapa, no le cambiamos la vista sola
+
+  // Qué parte del sistema de coordenadas del mapa se ve en pantalla. Con una pantalla más alta
+  // que el mapa (celular vertical) se ve más alto que H; con una más ancha, más ancho que W.
+  const visible = () => {
+    const w = svg.clientWidth || W;
+    const h = svg.clientHeight || H;
+    const px = Math.min(w / W, h / H); // píxeles de pantalla por unidad del mapa
+    const vw = w / px;
+    const vh = h / px;
+    return { x0: (W - vw) / 2, y0: (H - vh) / 2, vw, vh, px };
+  };
+  // si el mapa entra, centrado; si no, que no se pueda sacar de la pantalla
+  const encajar = (pos, tam, v0, vtam) => (tam <= vtam ? v0 + (vtam - tam) / 2 : Math.min(v0, Math.max(v0 + vtam - tam, pos)));
+
   const aplicar = () => {
+    const v = visible();
     const k = vista.k;
-    // que no se pueda sacar el mapa de la pantalla
-    vista.x = Math.min(0, Math.max(W - W * k, vista.x));
-    vista.y = Math.min(0, Math.max(H - H * k, vista.y));
+    vista.x = encajar(vista.x, W * k, v.x0, v.vw);
+    vista.y = encajar(vista.y, H * k, v.y0, v.vh);
     capa.setAttribute('transform', `translate(${vista.x} ${vista.y}) scale(${k})`);
-    // las fichas se achican un poco al acercar, para que Europa no quede tapada
-    const s = 1 / Math.sqrt(k);
+    // fichas de unos 10 px de radio en pantalla, para que se lean y se puedan tocar en el celular
+    const radioEnPantalla = 6.6 * v.px * k;
+    const s = Math.min(1.8, Math.max(0.45, 10 / radioEnPantalla));
     for (const [tid, { g }] of Object.entries(fichas)) {
       const [x, y] = GEO.territories[tid].label;
       g.setAttribute('transform', `translate(${x} ${y}) scale(${s})`);
     }
   };
+
+  // En un celular vertical el mundo entero queda muy chico: arrancamos acercados para que llene
+  // el alto, centrados en el medio (se mueve con el dedo y con "−" se ve todo).
+  const vistaInicial = () => {
+    const v = visible();
+    const k = Math.min(3, Math.max(1, (v.vh / H) * 0.9));
+    vista = { k, x: v.x0 + (v.vw - W * k) / 2, y: 0 };
+    aplicar();
+  };
+  new ResizeObserver(() => (tocado ? aplicar() : vistaInicial())).observe(svg);
   const aSvg = (cx, cy) => {
     const pt = svg.createSVGPoint();
     pt.x = cx;
@@ -71,6 +97,7 @@ export function crearMapa(contenedor, { onTocar }) {
     return pt.matrixTransform(svg.getScreenCTM().inverse());
   };
   const zoomEn = (cx, cy, factor) => {
+    tocado = true;
     const p = aSvg(cx, cy);
     const k = Math.min(ZOOM_MAX, Math.max(1, vista.k * factor));
     const f = k / vista.k;
@@ -109,7 +136,8 @@ export function crearMapa(contenedor, { onTocar }) {
     }
     if (!arrastre) return;
     if (Math.hypot(e.clientX - arrastre.x, e.clientY - arrastre.y) > 6) arrastre.movido = true;
-    if (arrastre.movido && vista.k > 1) {
+    if (arrastre.movido) {
+      tocado = true;
       const p0 = aSvg(antes.x, antes.y);
       const p1 = aSvg(e.clientX, e.clientY);
       vista.x += p1.x - p0.x;

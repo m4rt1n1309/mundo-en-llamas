@@ -96,9 +96,12 @@ label { display: grid; gap: .3em; margin-bottom: .75em; color: var(--tenue); }
   background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; padding: .5em .7em;
 }
 .lista-jugadores li input { flex: 1; }
-.lista-jugadores small { margin-left: auto; }
-.lista-jugadores .btn-icono { min-height: 34px; }
+.lista-jugadores small { margin-left: auto; flex: none; }
+.lista-jugadores .btn-icono { min-height: 34px; flex: none; }
+/* el nombre se corta con "…" antes que empujar la ✕ fuera de la pantalla */
+.lista-jugadores .nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lista-jugadores .online { color: #7bd88f; }
+@media (max-width: 380px) { .texto-estado { display: none; } }
 .lista-jugadores .offline { color: var(--tenue); }
 button.color { width: 34px; height: 34px; min-height: 0; border-radius: 50%; padding: 0; border: 2px solid #fff; flex: none; }
 
@@ -106,17 +109,20 @@ button.color { width: 34px; height: 34px; min-height: 0; border-radius: 50%; pad
 #juego {
   position: fixed; inset: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* minmax(0, …): sin esto la fila de chips ensancha la grilla más que la pantalla */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: "barra" "mapa" "panel";
 }
 .barra {
   grid-area: barra;
+  min-width: 0;
   display: flex; gap: 8px; align-items: center;
   padding: 6px 8px;
   background: var(--superficie);
   border-bottom: 1px solid var(--borde);
 }
-.jugadores { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+.jugadores { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
 .chip {
   display: grid; grid-template-columns: auto auto; column-gap: 6px; align-items: center;
   padding: 4px 9px; border-radius: 9px; background: var(--fondo); border: 1px solid var(--borde);
@@ -153,6 +159,7 @@ button.color { width: 34px; height: 34px; min-height: 0; border-radius: 50%; pad
 
 .panel {
   grid-area: panel;
+  min-width: 0;
   background: var(--superficie);
   border-top: 1px solid var(--borde);
   padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
@@ -167,14 +174,27 @@ button.color { width: 34px; height: 34px; min-height: 0; border-radius: 50%; pad
 .panel-botones button { flex: 1 1 auto; }
 .registro { list-style: none; margin: 0; padding: 0; font-size: .82rem; color: var(--tenue); display: grid; gap: 2px; }
 
-@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+/* Pantalla apaisada (compu o celular acostado): el panel va al costado para dejarle el alto al mapa */
+@media (min-width: 600px) and (min-aspect-ratio: 4/3) {
   #juego {
-    grid-template-columns: 1fr 340px;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr) clamp(230px, 30vw, 340px);
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas: "barra barra" "mapa panel";
   }
   .panel { max-height: none; border-top: none; border-left: 1px solid var(--borde); align-content: start; }
+}
+@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
   .registro { font-size: .85rem; }
+}
+/* Celular acostado: poco alto, todo más compacto */
+@media (max-height: 480px) {
+  .barra { padding: 3px 6px; }
+  .chip { padding: 2px 7px; font-size: .78rem; }
+  .chip small { display: none; }
+  .panel { padding: 6px 8px; gap: 4px; font-size: .9rem; }
+  .panel button { min-height: 36px; padding: .35em .7em; }
+  .zoom { gap: 4px; margin: 6px; }
+  .zoom .btn-icono { min-height: 34px; min-width: 34px; }
 }
 
 /* ---------------------------------------------------------------- dados */

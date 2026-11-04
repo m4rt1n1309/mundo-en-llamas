@@ -237,8 +237,8 @@ function alCambiarSala(sala) {
   $('#sala-jugadores').innerHTML = lista.map(([uid, j], i) => `
     <li>
       <span class="punto" style="background:${COLORES[i]?.hex ?? '#888'}"></span>
-      <b>${esc(j.nombre)}</b>${j.bot ? ' 🤖' : ''}${uid === sala.host ? ' 👑' : ''}${uid === s.uid ? ' (vos)' : ''}
-      ${j.bot ? '<small>bot</small>' : `<small class="${j.online ? 'online' : 'offline'}">${j.online ? '● conectado' : '○ desconectado'}</small>`}
+      <span class="nombre"><b>${esc(j.nombre)}</b>${j.bot ? ' 🤖' : ''}${uid === sala.host ? ' 👑' : ''}${uid === s.uid ? ' (vos)' : ''}</span>
+      ${j.bot ? '' : `<small class="${j.online ? 'online' : 'offline'}">${j.online ? '●' : '○'}<span class="texto-estado"> ${j.online ? 'conectado' : 'desconectado'}</span></small>`}
       ${soyHost && uid !== s.uid ? `<button class="btn-icono" data-sacar="${uid}" aria-label="Sacar de la sala" title="Sacar de la sala">✕</button>` : ''}
     </li>`).join('');
   const n = lista.length;
