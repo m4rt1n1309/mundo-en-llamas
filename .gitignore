@@ -1,0 +1,4 @@
+node_modules
+dist
+map-preview.svg
+*-debug.log

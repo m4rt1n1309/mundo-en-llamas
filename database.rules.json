@@ -1,0 +1,34 @@
+{
+  "rules": {
+    "salas": {
+      ".indexOn": ["actividad"],
+      ".read": "auth != null && query.orderByChild === 'actividad' && query.limitToFirst <= 20",
+      "$codigo": {
+        ".read": true,
+        ".write": "auth != null && !newData.exists() && (!data.child('actividad').exists() || data.child('actividad').val() < now - 86400000)",
+        "host": {
+          ".write": "auth != null && !data.exists() && newData.val() === auth.uid"
+        },
+        "creada": {
+          ".write": "auth != null && !data.exists()",
+          ".validate": "newData.val() === now"
+        },
+        "actividad": {
+          ".write": "auth != null && (newData.parent().child('host').val() === auth.uid || root.child('salas').child($codigo).child('jugadores').child(auth.uid).exists())",
+          ".validate": "newData.val() === now"
+        },
+        "jugadores": {
+          "$uid": {
+            ".write": "auth != null && (auth.uid === $uid || root.child('salas').child($codigo).child('host').val() === auth.uid)",
+            ".validate": "!newData.exists() || (newData.hasChildren(['nombre', 'unido']) && newData.child('nombre').isString() && newData.child('nombre').val().length >= 1 && newData.child('nombre').val().length <= 16)"
+          }
+        },
+        "partida": {
+          ".write": "auth != null && (root.child('salas').child($codigo).child('host').val() === auth.uid || (data.exists() && data.child('turno').val() === auth.uid && data.child('estado').child('phase').val() !== 'finished'))",
+          ".validate": "!newData.exists() || newData.hasChildren(['estado', 'evento', 'turno'])"
+        },
+        "$otro": { ".validate": false }
+      }
+    }
+  }
+}

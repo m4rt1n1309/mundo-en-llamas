@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#1a1412" />
+  <title>Mundo en Llamas</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <main id="inicio" class="pantalla">
+    <h1>🔥 Mundo en Llamas</h1>
+    <p class="subtitulo">Estrategia y conquista para 2 a 6 jugadores</p>
+
+    <section class="tarjeta-menu">
+      <h2>En esta compu</h2>
+      <p>Todos juegan en el mismo dispositivo, pasándose el turno.</p>
+      <div class="fila">
+        <button class="primario" id="btn-local">Nueva partida</button>
+        <button id="btn-continuar" hidden>Continuar la guardada</button>
+      </div>
+    </section>
+
+    <section class="tarjeta-menu" id="online">
+      <h2>Online</h2>
+      <p>Cada uno desde su celular o compu.</p>
+      <label>Tu nombre <input id="nombre" maxlength="16" autocomplete="nickname" /></label>
+      <div class="fila">
+        <button class="primario" id="btn-crear">Crear sala</button>
+      </div>
+      <div class="fila">
+        <input id="codigo" placeholder="CÓDIGO" maxlength="4" autocapitalize="characters" />
+        <button id="btn-unirse">Unirse</button>
+      </div>
+      <p class="nota" id="online-no" hidden>El modo online todavía no está configurado (ver README).</p>
+    </section>
+  </main>
+
+  <main id="config-local" class="pantalla" hidden>
+    <h1>Nueva partida</h1>
+    <ol id="lista-local" class="lista-jugadores"></ol>
+    <div class="fila">
+      <button id="btn-agregar">+ Jugador</button>
+      <button class="primario" id="btn-empezar-local">Empezar</button>
+    </div>
+    <button class="link" data-volver>← Volver</button>
+  </main>
+
+  <main id="sala" class="pantalla" hidden>
+    <h1>Sala <span id="sala-codigo" class="codigo"></span></h1>
+    <p>Pasales el código o el link a los demás.</p>
+    <div class="fila"><button id="btn-compartir">📋 Copiar link</button></div>
+    <ol id="sala-jugadores" class="lista-jugadores"></ol>
+    <p class="nota" id="sala-espera"></p>
+    <div class="fila">
+      <button id="btn-salir-sala">Salir</button>
+      <button class="primario" id="btn-empezar-online" hidden>Empezar</button>
+    </div>
+  </main>
+
+  <div id="juego" hidden></div>
+  <div id="cargando" class="aviso" hidden></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
