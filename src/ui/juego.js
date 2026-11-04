@@ -92,6 +92,10 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
   let ocupado = false;
   let modalAbierto = null; // qué muestra el modal: 'mover', 'tarjetas', 'objetivo', 'menu', 'fin'
   let esperandoDados = false;
+  // Mientras ruedan los dados de un ataque, el mapa, los jugadores y el registro muestran cómo
+  // estaba todo antes de la tirada, para no adelantar el resultado.
+  let estadoPrevio = null;
+  let registroEnEspera = [];
   const registro = [];
   let dados3d = pref.leer('dados3d', true);
   let sonido = pref.leer('sonido', true);
@@ -221,13 +225,14 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
       const vecinos = MAPA.territories[sel].neighbors;
       destinos = new Set(vecinos.filter((n) => (turno.step === 'attack') === (e.territories[n].owner !== yoId)));
     }
-    mapa.dibujar(e, colores(), { seleccionado: sel, destinos, continentes });
+    const vista = estadoPrevio ?? e;
+    mapa.dibujar(vista, colores(), { seleccionado: sel, destinos, continentes });
 
     // jugadores
     $('.jugadores').innerHTML = e.turnOrder.map((pid) => {
-      const p = jugador(pid);
-      const terr = ownedBy(e, pid);
-      const ejercitos = terr.reduce((n, t) => n + e.territories[t].armies, 0);
+      const p = vista.players.find((x) => x.id === pid);
+      const terr = ownedBy(vista, pid);
+      const ejercitos = terr.reduce((n, t) => n + vista.territories[t].armies, 0);
       return html`<div class="chip ${pid === actual() && e.phase !== 'finished' ? 'actual' : ''} ${p.alive ? '' : 'eliminado'}">
         <span class="punto" style="background:${hexDe(p.color)}"></span>
         <b>${esc(p.name)}${p.bot ? ' 🤖' : ''}${modo === 'online' && !p.bot && conexiones[pid] === false ? ' 📴' : ''}</b>
@@ -301,15 +306,16 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
 
   // ------------------------------------------------------------------ eventos (dados y registro)
 
-  function procesarEvento() {
+  function procesarEvento(anterior) {
     const ev = partida.evento;
     if (ev.n === ultimoN) return;
     const seguido = ultimoN !== null && ev.n === ultimoN + 1;
     ultimoN = ev.n;
     if (!seguido) return; // recién entramos: no repetimos jugadas viejas
+    if (anterior && ev.lista.some((e) => e.type === 'attack')) congelarHastaLosDados(anterior);
     for (const e of ev.lista) {
       const linea = describir(e);
-      if (linea) registro.push(linea);
+      if (linea) (estadoPrevio ? registroEnEspera : registro).push(linea);
       if (e.type === 'attack') {
         const colorAtaque = hexDe(jugador(e.player).color);
         mapa.marcarBatalla(e.from, e.to, colorAtaque);
@@ -326,6 +332,20 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
       }
     }
     if (registro.length > 60) registro.splice(0, registro.length - 60);
+  }
+
+  /** Muestra `anterior` en el mapa hasta que terminen de rodar los dados de este ataque. */
+  function congelarHastaLosDados(anterior) {
+    const yaEsperando = estadoPrevio !== null;
+    estadoPrevio = anterior;
+    if (yaEsperando) return;
+    // se registra antes de dados.mostrar(), pero libre() se resuelve recién cuando termina la cola
+    queueMicrotask(() => dados.libre().then(() => {
+      estadoPrevio = null;
+      registro.push(...registroEnEspera.splice(0));
+      if (registro.length > 60) registro.splice(0, registro.length - 60);
+      if (partida) dibujar();
+    }));
   }
 
   const nom = (pid) => `<b style="color:${hexDe(jugador(pid).color)}">${esc(jugador(pid).name)}</b>`;
@@ -426,6 +446,7 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
   function revisarModales() {
     const e = estado();
     if (e.phase === 'finished') {
+      if (estadoPrevio) return; // el ataque ganador: primero los dados
       if (modalAbierto !== 'fin') abrirFin();
       return;
     }
@@ -592,8 +613,9 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
   return {
     /** Muestra un estado nuevo de la partida (después de cada acción, propia o ajena). */
     mostrar(nueva) {
+      const anterior = partida?.estado ?? null;
       partida = nueva;
-      procesarEvento();
+      procesarEvento(anterior);
       dibujar();
       moverBots();
     },
