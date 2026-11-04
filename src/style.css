@@ -90,12 +90,13 @@ label { display: grid; gap: .3em; margin-bottom: .75em; color: var(--tenue); }
 #codigo { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; max-width: 9em; }
 .codigo { color: var(--fuego-2); letter-spacing: .15em; }
 
-.lista-jugadores { list-style: none; padding: 0; display: grid; gap: .5em; margin: 1em 0; }
+.lista-jugadores { list-style: none; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5em; margin: 1em 0; }
 .lista-jugadores li {
   display: flex; align-items: center; gap: .6em;
   background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; padding: .5em .7em;
 }
-.lista-jugadores li input { flex: 1; }
+/* width: 0 saca el ancho por defecto de los campos de texto (~20 letras): ocupa lo que sobre */
+.lista-jugadores li input { flex: 1; width: 0; min-width: 0; }
 .lista-jugadores small { margin-left: auto; flex: none; }
 .lista-jugadores .btn-icono { min-height: 34px; flex: none; }
 /* el nombre se corta con "…" antes que empujar la ✕ fuera de la pantalla */
@@ -104,6 +105,11 @@ label { display: grid; gap: .3em; margin-bottom: .75em; color: var(--tenue); }
 @media (max-width: 380px) { .texto-estado { display: none; } }
 .lista-jugadores .offline { color: var(--tenue); }
 button.color { width: 34px; height: 34px; min-height: 0; border-radius: 50%; padding: 0; border: 2px solid #fff; flex: none; }
+@media (max-width: 380px) {
+  .lista-jugadores li { gap: .4em; padding: .4em .5em; }
+  .lista-jugadores .btn-icono { min-width: 36px; padding: .2em .4em; }
+  button.color { width: 30px; height: 30px; }
+}
 
 /* ---------------------------------------------------------------- juego */
 #juego {
