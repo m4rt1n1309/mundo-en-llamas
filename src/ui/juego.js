@@ -28,6 +28,14 @@ const pref = {
   },
 };
 
+// Cuánto esperan los bots entre jugada y jugada (ms). La de ataque se cuenta desde que
+// terminan de rodar los dados, así se alcanza a leer el resultado.
+const VELOCIDADES = {
+  lenta: { nombre: '🐢 Bots: lentos', turno: 2200, ataque: 2400, otro: 1400 },
+  normal: { nombre: '🤖 Bots: velocidad normal', turno: 1400, ataque: 1500, otro: 850 },
+  rapida: { nombre: '🐇 Bots: rápidos', turno: 400, ataque: 350, otro: 300 },
+};
+
 const html = (strings, ...vals) => strings.reduce((s, str, i) => s + str + (i < vals.length ? vals[i] : ''), '');
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -62,6 +70,7 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
       <ol class="registro"></ol>
     </section>
     <div class="dados" hidden>
+      <div class="dados-titulo"></div>
       <div class="cajas-dados"><div id="dados-ataque" class="caja-dados"></div><div id="dados-defensa" class="caja-dados"></div></div>
       <div class="dados-resultado"></div>
     </div>
@@ -86,7 +95,10 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
   const registro = [];
   let dados3d = pref.leer('dados3d', true);
   let sonido = pref.leer('sonido', true);
+  let velocidad = pref.leer('velocidad', 'normal');
+  if (!VELOCIDADES[velocidad]) velocidad = 'normal';
   dados.silenciar(!sonido);
+  dados.usar3D(dados3d);
 
   const estado = () => partida.estado;
   const jugador = (pid) => estado().players.find((p) => p.id === pid);
@@ -298,12 +310,17 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
     for (const e of ev.lista) {
       const linea = describir(e);
       if (linea) registro.push(linea);
-      if (e.type === 'attack' && dados3d) {
+      if (e.type === 'attack') {
+        const colorAtaque = hexDe(jugador(e.player).color);
+        mapa.marcarBatalla(e.from, e.to, colorAtaque);
+        // si ataca otro (o un bot), el mapa lo sigue; en los ataques propios ya estás mirando ahí
+        if (!(miTurno() && e.player === yo())) mapa.enfocar(e.from, e.to);
         dados.mostrar({
           ataque: e.attackDice,
           defensa: e.defendDice,
-          colorAtaque: hexDe(jugador(e.player).color),
+          colorAtaque,
           colorDefensa: hexDe(jugador(e.defender).color),
+          tituloHtml: tituloBatalla(e),
           texto: resumenAtaque(e),
         });
       }
@@ -312,6 +329,13 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
   }
 
   const nom = (pid) => `<b style="color:${hexDe(jugador(pid).color)}">${esc(jugador(pid).name)}</b>`;
+  /** "Argentina ⚔ Brasil" en grande, con el color y el nombre de cada jugador abajo. */
+  function tituloBatalla(e) {
+    const lado = (tid, pid) => html`<span class="lado">
+      <b style="color:${hexDe(jugador(pid).color)}">${esc(nombreT(tid))}</b>
+      <small>${esc(jugador(pid).name)}</small></span>`;
+    return html`<div class="batalla">${lado(e.from, e.player)}<span class="vs">⚔</span>${lado(e.to, e.defender)}</div>`;
+  }
   function resumenAtaque(e) {
     const a = jugador(e.player).name;
     const d = jugador(e.defender).name;
@@ -371,9 +395,14 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
         sonido = !sonido;
         pref.guardar('sonido', sonido);
         dados.silenciar(!sonido);
+      } else if (b.dataset.pref === 'velocidad') {
+        const orden = Object.keys(VELOCIDADES);
+        velocidad = orden[(orden.indexOf(velocidad) + 1) % orden.length];
+        pref.guardar('velocidad', velocidad);
       } else {
         dados3d = !dados3d;
         pref.guardar('dados3d', dados3d);
+        dados.usar3D(dados3d);
       }
       return abrirMenu();
     }
@@ -477,6 +506,8 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
         ${sacar}
         <button data-pref="sonido">${sonido ? '🔊 Sonido: sí' : '🔇 Sonido: no'}</button>
         <button data-pref="dados3d">${dados3d ? '🎲 Dados 3D: sí' : '🎲 Dados 3D: no'}</button>
+        ${controlaBots && estado().players.some((p) => p.bot)
+    ? html`<button data-pref="velocidad">${VELOCIDADES[velocidad].nombre}</button>` : ''}
         <details><summary>Cómo se juega</summary>${reglas()}</details>
         <button data-salir>${modo === 'local' ? 'Salir (la partida queda guardada)' : 'Salir de la partida'}</button>
         <button class="primario" data-cerrar>Volver al juego</button>
@@ -538,7 +569,12 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaB
     const n = partida.evento.n;
     if (botProgramado === n) return;
     botProgramado = n;
-    const pausa = e.phase === 'setup' ? 350 : e.turn.step === 'attack' ? 300 : 550;
+    // pausas para poder seguir lo que hace: más largas al empezar su turno y después de cada tirada
+    const vel = VELOCIDADES[velocidad];
+    const lista = partida.evento.lista;
+    const pausa = lista.some((x) => x.type === 'turnStarted') ? vel.turno
+      : lista.some((x) => x.type === 'attack') ? vel.ataque
+        : e.phase === 'setup' ? vel.otro * 0.6 : vel.otro;
     (async () => {
       await dados.libre();
       await new Promise((r) => setTimeout(r, pausa));

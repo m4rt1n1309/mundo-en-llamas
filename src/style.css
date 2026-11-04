@@ -204,24 +204,43 @@ button.color { width: 34px; height: 34px; min-height: 0; border-radius: 50%; pad
 }
 
 /* ---------------------------------------------------------------- dados */
+/* Los dados ruedan sobre la parte de abajo del mapa, con fondo transparente; arriba queda libre
+   para ver la batalla (el mapa se mueve solo hasta ahí). No tapan los toques sobre el mapa. */
 .dados {
-  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -55%);
-  width: min(94vw, 720px); height: min(48vh, 360px);
-  z-index: 20;
-  display: grid; grid-template-rows: 1fr auto;
-  background: radial-gradient(ellipse at center, #1f4d2c 0%, #153a21 70%);
-  border: 3px solid #5a3a22; border-radius: 18px;
-  box-shadow: 0 14px 40px #000c;
-  overflow: hidden;
+  grid-area: mapa; align-self: end;
+  height: 60%; min-height: 0;
+  z-index: 3; pointer-events: none;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
 }
-.cajas-dados { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+.dados.sin-3d { height: auto; }
+.dados.sin-3d .cajas-dados { display: none; }
+.cajas-dados { display: grid; grid-template-columns: 1fr 1fr; width: 100%; min-height: 0; }
 .caja-dados { position: relative; min-height: 0; }
-.caja-dados + .caja-dados { border-left: 2px dashed #ffffff30; }
 .caja-dados canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
-.dados-resultado {
-  text-align: center; font-weight: 700; padding: 8px 12px; min-height: 2.4em;
-  background: #0008;
+.dados-titulo, .dados-resultado {
+  background: #000000c8; backdrop-filter: blur(3px);
+  border-radius: 12px; margin: 6px 8px; padding: 6px 14px;
+  box-shadow: 0 4px 16px #0008; text-align: center;
 }
+.dados-resultado { font-weight: 700; }
+.dados-resultado:empty { visibility: hidden; }
+.dados-titulo, .dados-resultado { max-width: calc(100% - 16px); box-sizing: border-box; overflow-wrap: anywhere; }
+.batalla { display: flex; align-items: center; justify-content: center; gap: 10px; }
+/* los nombres largos ("Golfo de Guinea") pasan a dos líneas en vez de cortarse */
+.batalla .lado { display: grid; justify-items: center; line-height: 1.15; min-width: 0; flex: 1 1 0; text-align: center; overflow-wrap: anywhere; }
+.batalla .lado b { font-size: clamp(1.05rem, 4.6vw, 1.5rem); text-shadow: 0 1px 2px #000; }
+.batalla .lado small { color: var(--tenue); font-size: .8rem; }
+.batalla .vs { font-size: clamp(1.3rem, 6vw, 1.9rem); }
+
+/* batalla en el mapa: los dos territorios titilan y una flecha va del atacante al atacado */
+.territorio.batalla-origen, .territorio.batalla-destino {
+  stroke: #fff; stroke-width: 2.5; animation: latido .5s ease-in-out infinite alternate;
+}
+.flecha line { vector-effect: non-scaling-stroke; stroke-linecap: round; pointer-events: none; }
+.flecha .flecha-borde { stroke: #fff; stroke-width: 7; opacity: .85; }
+.flecha .flecha-linea { stroke-width: 4; }
+.flecha .flecha-punta { stroke: #fff; stroke-width: 1.5; paint-order: stroke; pointer-events: none; }
 
 /* ---------------------------------------------------------------- modales y avisos */
 .modal {
