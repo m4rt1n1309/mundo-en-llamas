@@ -1,6 +1,15 @@
 # 🔥 Mundo en Llamas
 
-Juego de estrategia y conquista de territorios para el navegador, de 2 a 6 jugadores. Se juega en una sola compu (pasándose el turno) u **online**, cada uno desde su celular o compu. Los dados 3D son los mismos de La Generala.
+Juego de estrategia y conquista de territorios para el navegador, de 2 a 6 jugadores. Se juega en una sola compu (pasándose el turno) u **online**, cada uno desde su celular o compu, con **bots** para completar la mesa. Los dados 3D son los mismos de La Generala.
+
+**Jugar:** https://m4rt1n1309.github.io/mundo-en-llamas/
+
+## Bots y anfitrión
+
+- **En esta compu:** al armar la partida, cada lugar se marca 👤 persona o 🤖 bot. Si hay un solo humano no aparece el telón entre turnos.
+- **Online:** el anfitrión agrega bots con "+ 🤖 Bot" en la sala de espera y saca a quien quiera con ✕. Los bots juegan desde el dispositivo del anfitrión: si el anfitrión cierra la página, los bots esperan a que vuelva.
+- **Sacar a alguien en plena partida** (☰ → Jugadores): su lugar lo sigue jugando un bot, así no se traba la partida si alguien se fue. Esa persona ya no puede volver a entrar.
+- El bot (`src/bot.js`) junta los refuerzos en su mejor frontera, ataca con ventaja, apunta a su objetivo secreto y a completar continentes, canjea tarjetas apenas puede y lleva los ejércitos del interior a la frontera.
 
 ## Cómo funciona
 
@@ -54,6 +63,7 @@ Valores ajustables en `DEFAULT_CONFIG` (`src/engine/game.js`).
 - `src/engine/`: reglas puras (sin navegador ni red), con tests.
 - `src/map/mundo.js`: los 49 territorios, continentes, fronteras y objetivos. `mundo-geo.json` es el dibujo generado por `scripts/build-map.js` a partir de Natural Earth.
 - `src/partida.js`: la partida tal como se guarda (estado + último evento + de quién es el turno).
+- `src/bot.js`: el bot.
 - `src/red.js`: Firebase (salas, presencia, jugadas).
 - `src/ui/`: mapa SVG, dados 3D y pantalla de juego. `src/main.js`: pantallas de inicio y sala.
 - `database.rules.json`: reglas de seguridad de Firebase.

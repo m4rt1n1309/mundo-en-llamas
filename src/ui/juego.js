@@ -5,6 +5,7 @@ import { crearMapa } from './mapa.js';
 import { crearDados } from './dados.js';
 import { MAPA, hexDe } from '../partida.js';
 import { describeObjective, isValidTrade, tradeValue, areAdjacent, ownedBy } from '../engine/index.js';
+import { decidirBot } from '../bot.js';
 
 const SIMBOLO = { tanque: '🛡️', avion: '✈️', barco: '⚓', comodin: '⭐' };
 const NOMBRE_SIMBOLO = { tanque: 'Tanque', avion: 'Avión', barco: 'Barco', comodin: 'Comodín' };
@@ -35,8 +36,10 @@ const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
  * miId: en online, el uid de este dispositivo
  * enviar(pid, accion): aplica la acción (puede ser async); lanza error si no vale
  * onSalir(): volver al inicio
+ * controlaBots: si este dispositivo mueve a los bots (local: siempre; online: el anfitrión)
+ * esHost, onReemplazar(pid): online, el anfitrión puede sacar a un jugador (lo reemplaza un bot)
  */
-export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
+export function crearJuego(raiz, { modo, miId = null, enviar, onSalir, controlaBots = false, esHost = false, onReemplazar = null }) {
   raiz.innerHTML = html`
     <header class="barra">
       <button class="btn-icono" data-accion="menu" aria-label="Menú">☰</button>
@@ -89,9 +92,20 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
   const jugador = (pid) => estado().players.find((p) => p.id === pid);
   const actual = () => estado().turnOrder[estado().current];
   const colores = () => Object.fromEntries(estado().players.map((p) => [p.id, hexDe(p.color)]));
-  /** Quién está mirando: en local, el jugador de turno; online, este dispositivo. */
-  const yo = () => (modo === 'local' ? (estado().phase === 'finished' ? null : actual()) : miId);
-  const miTurno = () => estado().phase !== 'finished' && actual() === yo();
+  const humanos = () => estado().players.filter((p) => !p.bot);
+  /**
+   * Quién está mirando. Online: este dispositivo. En local: el jugador de turno; mientras juega
+   * un bot, el único humano si hay uno solo (así ve sus tarjetas), o nadie si son varios.
+   */
+  const yo = () => {
+    if (modo === 'online') return miId;
+    if (estado().phase === 'finished') return null;
+    if (!jugador(actual()).bot) return actual();
+    const h = humanos();
+    return h.length === 1 ? h[0].id : null;
+  };
+  const miTurno = () => estado().phase !== 'finished' && actual() === yo() && !jugador(actual()).bot;
+  let conexiones = {};
 
   // ------------------------------------------------------------------ acciones
 
@@ -204,7 +218,7 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
       const ejercitos = terr.reduce((n, t) => n + e.territories[t].armies, 0);
       return html`<div class="chip ${pid === actual() && e.phase !== 'finished' ? 'actual' : ''} ${p.alive ? '' : 'eliminado'}">
         <span class="punto" style="background:${hexDe(p.color)}"></span>
-        <b>${esc(p.name)}</b>
+        <b>${esc(p.name)}${p.bot ? ' 🤖' : ''}${modo === 'online' && !p.bot && conexiones[pid] === false ? ' 📴' : ''}</b>
         <small>${terr.length} 🏳 · ${ejercitos} ⚔ · ${p.cards.length} 🃏</small>
       </div>`;
     }).join('');
@@ -247,6 +261,7 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
   function textoAyuda() {
     const e = estado();
     if (e.phase === 'finished') return motivo(e.winner.reason);
+    if (jugador(actual()).bot) return `Juega ${jugador(actual()).name}…`;
     if (!miTurno()) return modo === 'online' ? 'Esperá tu turno. Podés tocar un territorio para ver de quién es.' : '';
     if (e.phase === 'setup') return `Tocá tus territorios para ubicar ejércitos: te quedan ${e.setup.remaining}.`;
     const turno = e.turn;
@@ -316,6 +331,7 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
       case 'cardDrawn': return `${nom(e.player)} sacó una tarjeta`;
       case 'turnStarted': return `Turno de ${nom(e.player)} (+${e.reinforcements})`;
       case 'victory': return `🏆 ¡Ganó ${nom(e.player)}!`;
+      case 'replacedByBot': return `🤖 El anfitrión sacó a ${nom(e.player)}: sigue un bot en su lugar`;
       default: return null;
     }
   }
@@ -360,6 +376,17 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
         pref.guardar('dados3d', dados3d);
       }
       return abrirMenu();
+    }
+    if (b.dataset.reemplazar) {
+      // dos toques: el primero pide confirmación
+      if (!b.dataset.seguro) {
+        b.dataset.seguro = '1';
+        b.textContent = `¿Seguro? Tocá de nuevo para sacar a ${jugador(b.dataset.reemplazar).name}`;
+        b.classList.add('peligro');
+        return;
+      }
+      cerrar();
+      return onReemplazar?.(b.dataset.reemplazar);
     }
     if (b.dataset.salir !== undefined) {
       cerrar();
@@ -437,8 +464,17 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
   }
 
   function abrirMenu() {
+    // el anfitrión puede sacar a un jugador (por ejemplo, si se fue): lo reemplaza un bot
+    const otros = modo === 'online' && esHost && estado().phase !== 'finished'
+      ? estado().players.filter((p) => p.id !== miId && !p.bot && p.alive) : [];
+    const sacar = otros.length
+      ? html`<details><summary>Jugadores</summary><div class="columna">${otros.map((p) => html`
+          <button data-reemplazar="${p.id}">${conexiones[p.id] === false ? '📴' : '🟢'} Sacar a ${esc(p.name)} (sigue un bot)</button>`).join('')}
+        </div></details>`
+      : '';
     abrir('menu', html`<h2>Mundo en Llamas</h2>
       <div class="columna">
+        ${sacar}
         <button data-pref="sonido">${sonido ? '🔊 Sonido: sí' : '🔇 Sonido: no'}</button>
         <button data-pref="dados3d">${dados3d ? '🎲 Dados 3D: sí' : '🎲 Dados 3D: no'}</button>
         <details><summary>Cómo se juega</summary>${reglas()}</details>
@@ -463,11 +499,12 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
   function revisarTelon() {
     const telon = $('.telon');
     const e = estado();
-    if (modo !== 'local' || e.phase === 'finished') {
+    const pid = actual();
+    // solo hace falta tapar si hay más de un humano y le toca a uno de ellos
+    if (modo !== 'local' || e.phase === 'finished' || humanos().length < 2 || jugador(pid).bot) {
       telon.hidden = true;
       return;
     }
-    const pid = actual();
     if (telonVisto === pid) return;
     const p = jugador(pid);
     telon.innerHTML = html`<div><span class="punto grande" style="background:${hexDe(p.color)}"></span>
@@ -489,12 +526,45 @@ export function crearJuego(raiz, { modo, miId = null, enviar, onSalir }) {
     ocultarAviso = setTimeout(() => (a.hidden = true), 2600);
   }
 
+  // ------------------------------------------------------------------ bots
+  // Cuando le toca a un bot, este dispositivo (si es el que los controla) pide su próxima
+  // acción y la envía como cualquier otra jugada. Espera a que terminen los dados para que se vea.
+  let botProgramado = null;
+  function moverBots() {
+    const e = estado();
+    if (!controlaBots || e.phase === 'finished') return;
+    const pid = actual();
+    if (!jugador(pid).bot) return;
+    const n = partida.evento.n;
+    if (botProgramado === n) return;
+    botProgramado = n;
+    const pausa = e.phase === 'setup' ? 350 : e.turn.step === 'attack' ? 300 : 550;
+    (async () => {
+      await dados.libre();
+      await new Promise((r) => setTimeout(r, pausa));
+      if (partida.evento.n !== n) return; // mientras esperaba llegó otra jugada
+      try {
+        await enviar(pid, decidirBot(MAPA, estado(), pid));
+      } catch (err) {
+        console.error('Bot:', err);
+        botProgramado = null;
+        setTimeout(moverBots, 2000); // por ejemplo, se cortó la conexión: reintenta
+      }
+    })();
+  }
+
   return {
     /** Muestra un estado nuevo de la partida (después de cada acción, propia o ajena). */
     mostrar(nueva) {
       partida = nueva;
       procesarEvento();
       dibujar();
+      moverBots();
+    },
+    /** Online: quién está conectado ({ uid: bool }). */
+    conexiones(mapa) {
+      conexiones = mapa;
+      if (partida) dibujar();
     },
   };
 }

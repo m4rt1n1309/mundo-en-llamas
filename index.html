@@ -39,9 +39,11 @@
 
   <main id="config-local" class="pantalla" hidden>
     <h1>Nueva partida</h1>
+    <p class="nota">Tocá 👤/🤖 para que un lugar lo juegue una persona o un bot, y el círculo para cambiar el color.</p>
     <ol id="lista-local" class="lista-jugadores"></ol>
     <div class="fila">
       <button id="btn-agregar">+ Jugador</button>
+      <button id="btn-agregar-bot">+ 🤖 Bot</button>
       <button class="primario" id="btn-empezar-local">Empezar</button>
     </div>
     <button class="link" data-volver>← Volver</button>
@@ -55,6 +57,7 @@
     <p class="nota" id="sala-espera"></p>
     <div class="fila">
       <button id="btn-salir-sala">Salir</button>
+      <button id="btn-bot" hidden>+ 🤖 Bot</button>
       <button class="primario" id="btn-empezar-online" hidden>Empezar</button>
     </div>
   </main>

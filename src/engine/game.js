@@ -21,7 +21,7 @@ export const DEFAULT_CONFIG = Object.freeze({
 
 /**
  * Crea una partida. El estado es un objeto JSON plano: se puede guardar y mandar por red.
- * players: [{ id, name, color }]
+ * players: [{ id, name, color, bot? }]
  */
 export function createGame({ map, players, seed = Date.now(), config = {} }) {
   validateMap(map);
@@ -46,6 +46,7 @@ export function createGame({ map, players, seed = Date.now(), config = {} }) {
       id: p.id,
       name: p.name,
       color: p.color,
+      bot: !!p.bot,
       alive: true,
       cards: [],
       trades: 0,

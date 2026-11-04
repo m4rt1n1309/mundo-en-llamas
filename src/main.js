@@ -1,5 +1,6 @@
 import { crearJuego } from './ui/juego.js';
-import { COLORES, hexDe, nuevaPartida, jugarAccion, normalizar } from './partida.js';
+import { COLORES, hexDe, nuevaPartida, jugarAccion, normalizar, convertirEnBot } from './partida.js';
+import { nombreBot } from './bot.js';
 import * as red from './red.js';
 
 const $ = (s) => document.querySelector(s);
@@ -59,10 +60,12 @@ function dibujarListaLocal() {
   $('#lista-local').innerHTML = jugadoresLocal.map((j, i) => `
     <li>
       <button class="color" data-color="${i}" style="background:${hexDe(j.color)}" aria-label="Cambiar color"></button>
+      <button class="btn-icono" data-bot="${i}" title="${j.bot ? 'Bot' : 'Persona'}" aria-label="Persona o bot">${j.bot ? '🤖' : '👤'}</button>
       <input data-nombre="${i}" value="${esc(j.name)}" maxlength="16" />
       ${jugadoresLocal.length > 2 ? `<button class="btn-icono" data-quitar="${i}" aria-label="Quitar">✕</button>` : ''}
     </li>`).join('');
   $('#btn-agregar').disabled = jugadoresLocal.length >= 6;
+  $('#btn-agregar-bot').disabled = jugadoresLocal.length >= 6;
 }
 
 function colorLibre(excepto = -1) {
@@ -82,6 +85,10 @@ $('#btn-agregar').onclick = () => {
   jugadoresLocal.push({ name: `Jugador ${jugadoresLocal.length + 1}`, color: colorLibre() });
   dibujarListaLocal();
 };
+$('#btn-agregar-bot').onclick = () => {
+  jugadoresLocal.push({ name: nombreBot(jugadoresLocal.map((j) => j.name)), color: colorLibre(), bot: true });
+  dibujarListaLocal();
+};
 $('#lista-local').addEventListener('input', (e) => {
   const i = e.target.dataset.nombre;
   if (i !== undefined) jugadoresLocal[i].name = e.target.value;
@@ -90,6 +97,13 @@ $('#lista-local').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.quitar !== undefined) jugadoresLocal.splice(Number(b.dataset.quitar), 1);
+  if (b.dataset.bot !== undefined) {
+    const j = jugadoresLocal[Number(b.dataset.bot)];
+    j.bot = !j.bot;
+    // si tenía el nombre automático, le ponemos uno que se note
+    if (j.bot && /^Jugador \d+$/.test(j.name)) j.name = nombreBot(jugadoresLocal.map((x) => x.name));
+    if (!j.bot && j.name.startsWith('Bot ')) j.name = `Jugador ${Number(b.dataset.bot) + 1}`;
+  }
   if (b.dataset.color !== undefined) {
     // pasa al siguiente color que nadie use
     const i = Number(b.dataset.color);
@@ -101,7 +115,9 @@ $('#lista-local').addEventListener('click', (e) => {
   dibujarListaLocal();
 });
 $('#btn-empezar-local').onclick = () => {
-  const jugadores = jugadoresLocal.map((j, i) => ({ id: `j${i + 1}`, name: j.name.trim() || `Jugador ${i + 1}`, color: j.color }));
+  const jugadores = jugadoresLocal.map((j, i) => ({
+    id: `j${i + 1}`, name: j.name.trim() || `Jugador ${i + 1}`, color: j.color, bot: !!j.bot,
+  }));
   jugarLocal(nuevaPartida(jugadores));
 };
 $('#btn-continuar').onclick = () => {
@@ -114,6 +130,7 @@ function jugarLocal(partida) {
   mostrarPantalla('juego');
   const juego = crearJuego($('#juego'), {
     modo: 'local',
+    controlaBots: true,
     enviar(pid, accion) {
       partida = jugarAccion(partida, pid, accion);
       guardado.guardar('local', partida.estado.phase === 'finished' ? null : partida);
@@ -195,6 +212,10 @@ function alCambiarSala(sala) {
       s.juego = crearJuego($('#juego'), {
         modo: 'online',
         miId: s.uid,
+        // los bots los mueve el dispositivo del anfitrión
+        controlaBots: soyHost,
+        esHost: soyHost,
+        onReemplazar: (pid) => red.sacarJugador(s.codigo, pid, (p) => convertirEnBot(p, pid)).catch((err) => avisar(err.message)),
         enviar: (pid, accion) => red.jugar(s.codigo, (p) => jugarAccion(p, pid, accion)),
         onSalir: async () => {
           const terminada = s.sala?.partida?.estado?.phase === 'finished';
@@ -204,6 +225,7 @@ function alCambiarSala(sala) {
         },
       });
     }
+    s.juego.conexiones(Object.fromEntries(Object.entries(sala.jugadores).map(([uid, j]) => [uid, !!j.online])));
     s.juego.mostrar(sala.partida);
     return;
   }
@@ -215,10 +237,14 @@ function alCambiarSala(sala) {
   $('#sala-jugadores').innerHTML = lista.map(([uid, j], i) => `
     <li>
       <span class="punto" style="background:${COLORES[i]?.hex ?? '#888'}"></span>
-      <b>${esc(j.nombre)}</b>${uid === sala.host ? ' 👑' : ''}${uid === s.uid ? ' (vos)' : ''}
-      <small class="${j.online ? 'online' : 'offline'}">${j.online ? '● conectado' : '○ desconectado'}</small>
+      <b>${esc(j.nombre)}</b>${j.bot ? ' 🤖' : ''}${uid === sala.host ? ' 👑' : ''}${uid === s.uid ? ' (vos)' : ''}
+      ${j.bot ? '<small>bot</small>' : `<small class="${j.online ? 'online' : 'offline'}">${j.online ? '● conectado' : '○ desconectado'}</small>`}
+      ${soyHost && uid !== s.uid ? `<button class="btn-icono" data-sacar="${uid}" aria-label="Sacar de la sala" title="Sacar de la sala">✕</button>` : ''}
     </li>`).join('');
   const n = lista.length;
+  $('#btn-bot').hidden = !soyHost;
+  $('#btn-bot').disabled = n >= 6;
+  $('#btn-bot').onclick = () => red.agregarBot(s.codigo, nombreBot(lista.map(([, j]) => j.nombre))).catch((err) => avisar(err.message));
   $('#btn-empezar-online').hidden = !soyHost;
   $('#btn-empezar-online').disabled = n < 2;
   $('#btn-empezar-online').textContent = `Empezar (${n} jugadores)`;
@@ -226,7 +252,7 @@ function alCambiarSala(sala) {
     ? (n < 2 ? 'Se necesitan al menos 2 jugadores.' : 'Cuando estén todos, tocá Empezar.')
     : 'Esperando que el anfitrión empiece la partida…';
   $('#btn-empezar-online').onclick = () => {
-    const jugadores = lista.slice(0, 6).map(([uid, j], i) => ({ id: uid, name: j.nombre, color: COLORES[i].id }));
+    const jugadores = lista.slice(0, 6).map(([uid, j], i) => ({ id: uid, name: j.nombre, color: COLORES[i].id, bot: !!j.bot }));
     red.empezar(s.codigo, nuevaPartida(jugadores)).catch((err) => avisar(err.message));
   };
 }
@@ -244,6 +270,10 @@ async function salirDeSala(borrarme) {
 }
 
 $('#btn-salir-sala').onclick = () => salirDeSala(true);
+$('#sala-jugadores').addEventListener('click', (e) => {
+  const uid = e.target.closest('[data-sacar]')?.dataset.sacar;
+  if (uid && salaActual) red.sacarJugador(salaActual.codigo, uid).catch((err) => avisar(err.message));
+});
 $('#btn-compartir').onclick = async () => {
   const link = `${location.origin}${location.pathname}?sala=${salaActual.codigo}`;
   try {

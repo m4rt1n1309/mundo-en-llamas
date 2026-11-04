@@ -37,6 +37,16 @@ export function jugarAccion(partida, pid, accion) {
   };
 }
 
+/** El anfitrión saca a un jugador de la partida: su lugar pasa a manejarlo un bot. */
+export function convertirEnBot(partida, pid) {
+  const p = structuredClone(partida);
+  const j = p.estado.players.find((x) => x.id === pid);
+  if (!j || j.bot) return p;
+  j.bot = true;
+  p.evento = { n: p.evento.n + 1, por: null, lista: [{ type: 'replacedByBot', player: pid }] };
+  return p;
+}
+
 /**
  * Firebase no guarda listas vacías ni valores null: los devuelve como "no existe".
  * Esto repone todo lo que el motor espera encontrar.
@@ -53,6 +63,7 @@ export function normalizar(p) {
     e.turn.regroupLocked ??= {};
   }
   for (const j of e.players) {
+    j.bot ??= false;
     j.cards ??= [];
     j.eliminatedBy ??= null;
     j.objective ??= null;

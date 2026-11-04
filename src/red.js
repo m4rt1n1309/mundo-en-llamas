@@ -129,8 +129,9 @@ export async function unirse(codigo, nombre) {
   if (!snap.exists()) throw new Error(`No existe la sala ${codigo}.`);
   const sala = snap.val();
   const yaEstaba = !!sala.jugadores?.[uid];
-  const enPartida = !!sala.partida?.estado?.players?.some((j) => j.id === uid);
-  if (sala.partida && !enPartida) throw new Error('Esa partida ya empezó.');
+  const lugar = sala.partida?.estado?.players?.find((j) => j.id === uid);
+  if (sala.partida && !lugar) throw new Error('Esa partida ya empezó.');
+  if (lugar?.bot) throw new Error('El anfitrión te sacó de la partida y un bot sigue en tu lugar.');
   if (!yaEstaba && Object.keys(sala.jugadores || {}).length >= 6) throw new Error('La sala está llena (6 jugadores).');
   await set(salaRef(codigo, `jugadores/${uid}`), {
     nombre: yaEstaba ? sala.jugadores[uid].nombre : nombre,
@@ -191,6 +192,20 @@ export function escucharSala(codigo, cb) {
     if (sala?.partida) sala.partida = normalizar(sala.partida);
     cb(sala);
   });
+}
+
+// Los bots son jugadores de la sala con id "bot-…": los maneja el dispositivo del anfitrión.
+export async function agregarBot(codigo, nombre) {
+  const id = `bot-${Array.from(crypto.getRandomValues(new Uint32Array(2)), (n) => n.toString(36)).join('')}`;
+  await set(salaRef(codigo, `jugadores/${id}`), { nombre, unido: serverTimestamp(), online: true, bot: true });
+  tocar(codigo);
+}
+
+/** Saca a alguien de la sala (solo el anfitrión). Si la partida ya empezó, antes lo reemplaza un bot. */
+export async function sacarJugador(codigo, uid, reemplazar) {
+  if (reemplazar) await jugar(codigo, reemplazar);
+  await remove(salaRef(codigo, `jugadores/${uid}`));
+  tocar(codigo);
 }
 
 export async function empezar(codigo, partida) {
