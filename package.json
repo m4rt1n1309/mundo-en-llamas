@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node --test test/*.test.js",
     "build:map": "node scripts/build-map.js",
     "emuladores": "npx --yes firebase-tools@10.9.2 emulators:start --only auth,database --project demo-mundo",
     "deploy-rules": "npx --yes firebase-tools@13.29.1 deploy --only database"
